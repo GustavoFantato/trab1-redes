@@ -117,3 +117,10 @@ make reset
 1. Encerre os processos nos terminais pressionando `Ctrl + C`.
 2. Navegue até `servidor/src` e apague manualmente a pasta `pasta_servidor` e os arquivos `.class`.
 3. Navegue até `cliente/src` e apague manualmente as pastas dos clientes (ex: `pasta_cliente_1`) e os arquivos `.class`.
+
+
+**Integrantes do grupo:**
+1. Aron Costa da Silva Araújo
+2. Gustavo Fantato Fernandes 
+3. Renan Silva Blasques 
+4. Victor Kayky Zaneti Antunes
