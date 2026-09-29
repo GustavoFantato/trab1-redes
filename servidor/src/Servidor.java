@@ -3,21 +3,21 @@ import java.net.*;
 import java.nio.file.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class Servidor {
-    private static CopyOnWriteArrayList<DataOutputStream> escritores = new CopyOnWriteArrayList<>();
+    private static CopyOnWriteArrayList<DataOutputStream> saidas = new CopyOnWriteArrayList<>();
     private static Set<String> arquivosIgnorados = ConcurrentHashMap.newKeySet();
-    private static ConcurrentHashMap<String, Long> ultimoEnvio = new ConcurrentHashMap<>();
 
-    // Grava os detalhes silenciosamente no arquivo dentro da pasta visível logs_servidor
+    // Grava os detalhes no arquivo dentro da pasta visível logs_servidor
     private static synchronized void registrarLog(String operacao, String descricao, String origem, String destino) {
         String dataHora = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss"));
         String linhaLog = String.format("[%s] [%s] %s | [%s] -> [%s]", dataHora, operacao, descricao, origem, destino);
 
-        // Cria a pasta visível dentro da pasta do servidor
+        // Cria a pasta visível dentro da pasta do servidor se ela não existir
         File pastaLogs = new File("pasta_servidor/logs_servidor");
         if (!pastaLogs.exists()) {
             pastaLogs.mkdirs();
@@ -26,15 +26,16 @@ public class Servidor {
         File arquivoLog = new File(pastaLogs, "registro.log");
 
         try (FileWriter fw = new FileWriter(arquivoLog, true);
-             BufferedWriter bw = new BufferedWriter(fw);
-             PrintWriter out = new PrintWriter(bw)) {
-            out.println(linhaLog);
+                BufferedWriter bw = new BufferedWriter(fw);
+                PrintWriter pw = new PrintWriter(bw)) {
+            pw.println(linhaLog);
         } catch (IOException e) {
             System.out.println("Erro ao salvar log: " + e.getMessage());
         }
     }
 
     public static void main(String[] args) throws Exception {
+        // Cria o socket do servidor
         ServerSocket serverSocket = new ServerSocket(8080);
 
         // Criação das pastas
@@ -44,11 +45,12 @@ public class Servidor {
         pastaLogs.mkdirs();
 
         System.out.println("Servidor de espelhamento rodando na porta 8080...");
-        System.out.println("📁 Os logs estão sendo salvos em: " + pastaLogs.getAbsolutePath() + "/registro.log");
+        System.out.println("Os logs estão sendo salvos em: " + pastaLogs.getAbsolutePath() + "/registro.log");
         System.out.println("------------------------------------------------------");
 
         registrarLog("SISTEMA", "Servidor de espelhamento iniciado na porta 8080", "Localhost", "N/A");
 
+        // Cria uma thread para monitorar as alterações na pasta do servidor
         new Thread(() -> {
             try {
                 WatchService watchService = FileSystems.getDefault().newWatchService();
@@ -57,65 +59,67 @@ public class Servidor {
                         StandardWatchEventKinds.ENTRY_MODIFY,
                         StandardWatchEventKinds.ENTRY_DELETE);
 
+                // Loop principal para monitorar as alterações na pasta do servidor
                 while (true) {
                     WatchKey key = watchService.take();
-                    Thread.sleep(100);
+                    Thread.sleep(400);
 
+                    Set<String> nomes = new HashSet<>();
                     for (WatchEvent<?> event : key.pollEvents()) {
                         String nomeArquivo = event.context().toString();
 
                         // Ignora arquivos ocultos, temporários e a nossa pasta de logs!
-                        if (nomeArquivo.startsWith(".") || nomeArquivo.endsWith("~") || nomeArquivo.equals("logs_servidor")) continue;
-                        if (arquivosIgnorados.contains(nomeArquivo)) continue;
+                        if (nomeArquivo.startsWith(".") || nomeArquivo.endsWith("~")
+                                || nomeArquivo.equals("logs_servidor"))
+                            continue;
+                        if (arquivosIgnorados.contains(nomeArquivo))
+                            continue;
+                        nomes.add(nomeArquivo);
+                    }
+                    key.reset();
 
-                        long tempoAtual = System.currentTimeMillis();
-                        long tempoAnterior = ultimoEnvio.getOrDefault(nomeArquivo, 0L);
-                        if (tempoAtual - tempoAnterior < 1000) continue;
-
+                    // Para cada arquivo alterado, envia a operação para os clientes
+                    for (String nomeArquivo : nomes) {
                         File arquivoDetectado = new File("pasta_servidor/" + nomeArquivo);
 
-                        if (event.kind() == StandardWatchEventKinds.ENTRY_CREATE || event.kind() == StandardWatchEventKinds.ENTRY_MODIFY) {
-                            if (arquivoDetectado.exists() && arquivoDetectado.isFile()) {
-                                ultimoEnvio.put(nomeArquivo, tempoAtual);
-                                System.out.println("[Monitor] Adição/Edição manual detectada: '" + nomeArquivo + "'");
-                                registrarLog("SYNC_LOCAL", "Adição/Edição manual de '" + nomeArquivo + "'", "Servidor Central", "Todos os Clientes");
+                        // Se o arquivo for um arquivo, envia a operação SYNC para os clientes
+                        if (arquivoDetectado.isFile()) {
+                            byte[] dados = Files.readAllBytes(arquivoDetectado.toPath());
+                            System.out.println("[Monitor] Adição/Edição manual detectada: '" + nomeArquivo + "'");
+                            registrarLog("SYNC_LOCAL", "Adição/Edição manual de '" + nomeArquivo + "'",
+                                    "Servidor Central", "Todos os Clientes");
 
-                                for (DataOutputStream escritor : escritores) {
-                                    synchronized(escritor) {
-                                        try {
-                                            escritor.writeUTF("SYNC");
-                                            escritor.writeUTF("Servidor Central");
-                                            escritor.writeUTF(nomeArquivo);
-                                            escritor.writeLong(arquivoDetectado.length());
-
-                                            FileInputStream fis = new FileInputStream(arquivoDetectado);
-                                            byte[] buffer = new byte[4096];
-                                            int bytesLidos;
-                                            while ((bytesLidos = fis.read(buffer)) != -1) {
-                                                escritor.write(buffer, 0, bytesLidos);
-                                            }
-                                            fis.close();
-                                        } catch (IOException e) {}
+                            for (DataOutputStream saida : saidas) {
+                                synchronized (saida) {
+                                    try {
+                                        saida.writeUTF("SYNC");
+                                        saida.writeUTF("Servidor Central");
+                                        saida.writeUTF(nomeArquivo);
+                                        saida.writeLong(dados.length);
+                                        saida.write(dados);
+                                    } catch (IOException e) {
                                     }
                                 }
                             }
-                        } else if (event.kind() == StandardWatchEventKinds.ENTRY_DELETE) {
-                            ultimoEnvio.put(nomeArquivo, tempoAtual);
+                            // Se o arquivo não for um arquivo, envia a operação DELETE para os clientes
+                        } else if (!arquivoDetectado.exists()) {
                             System.out.println("[Monitor] Exclusão manual detectada: '" + nomeArquivo + "'");
-                            registrarLog("DELETE_LOCAL", "Exclusão manual de '" + nomeArquivo + "'", "Servidor Central", "Todos os Clientes");
+                            registrarLog("DELETE_LOCAL", "Exclusão manual de '" + nomeArquivo + "'", "Servidor Central",
+                                    "Todos os Clientes");
 
-                            for (DataOutputStream escritor : escritores) {
-                                synchronized(escritor) {
+                            // Para cada cliente conectado, envia a operação DELETE para o cliente
+                            for (DataOutputStream saida : saidas) {
+                                synchronized (saida) {
                                     try {
-                                        escritor.writeUTF("DELETE");
-                                        escritor.writeUTF("Servidor Central");
-                                        escritor.writeUTF(nomeArquivo);
-                                    } catch (IOException e) {}
+                                        saida.writeUTF("DELETE");
+                                        saida.writeUTF("Servidor Central");
+                                        saida.writeUTF(nomeArquivo);
+                                    } catch (IOException e) {
+                                    }
                                 }
                             }
                         }
                     }
-                    key.reset();
                 }
             } catch (Exception e) {
                 System.out.println("Erro no monitoramento da pasta do servidor.");
@@ -123,6 +127,7 @@ public class Servidor {
             }
         }).start();
 
+        // Loop principal para aceitar novas conexões de clientes
         while (true) {
             Socket socket = serverSocket.accept();
             System.out.println("Novo cliente conectado!");
@@ -131,83 +136,87 @@ public class Servidor {
         }
     }
 
+    // Classe interna para manipular as conexões dos clientes
     private static class ManipuladorCliente implements Runnable {
         private Socket socket;
-        private DataOutputStream out;
-        private DataInputStream in;
+        private DataOutputStream saida;
+        private DataInputStream entrada;
 
-        public ManipuladorCliente(Socket socket) { this.socket = socket; }
+        public ManipuladorCliente(Socket socket) {
+            this.socket = socket;
+        }
 
         public void run() {
             try {
-                in = new DataInputStream(socket.getInputStream());
-                out = new DataOutputStream(socket.getOutputStream());
-                escritores.add(out);
+                entrada = new DataInputStream(socket.getInputStream());
+                saida = new DataOutputStream(socket.getOutputStream());
+                saidas.add(saida);
 
                 File pastaServ = new File("pasta_servidor");
                 File[] arqs = pastaServ.listFiles();
                 if (arqs != null) {
                     for (File f : arqs) {
-                        // Como adicionamos f.isFile(), ele ignora pastas no Handshake (como a logs_servidor)
+                        // Como adicionamos f.isFile(), ele ignora pastas no Handshake (como a
+                        // logs_servidor)
                         if (f.isFile() && !f.getName().startsWith(".") && !f.getName().endsWith("~")) {
-                            synchronized(out) {
-                                registrarLog("HANDSHAKE", "Enviando '" + f.getName() + "' para cliente recém-conectado", "Servidor", "Novo Cliente");
-                                out.writeUTF("SYNC");
-                                out.writeUTF("Servidor (Sync Inicial)");
-                                out.writeUTF(f.getName());
-                                out.writeLong(f.length());
-                                FileInputStream fis = new FileInputStream(f);
-                                byte[] buf = new byte[4096];
-                                int lidos;
-                                while ((lidos = fis.read(buf)) != -1) {
-                                    out.write(buf, 0, lidos);
-                                }
-                                fis.close();
+                            byte[] dados = Files.readAllBytes(f.toPath());
+                            synchronized (saida) {
+                                registrarLog("HANDSHAKE", "Enviando '" + f.getName() + "' para cliente recém-conectado",
+                                        "Servidor", "Novo Cliente");
+                                saida.writeUTF("SYNC");
+                                saida.writeUTF("Servidor (Sync Inicial)");
+                                saida.writeUTF(f.getName());
+                                saida.writeLong(dados.length);
+                                saida.write(dados);
                             }
                         }
                     }
                 }
+                synchronized (saida) {
+                    registrarLog("HANDSHAKE", "Fim do envio inicial para cliente recém-conectado", "Servidor",
+                            "Novo Cliente");
+                    saida.writeUTF("HANDSHAKE_FIM");
+                    saida.writeUTF("");
+                    saida.writeUTF("");
+                }
 
                 while (true) {
-                    String operacao = in.readUTF();
-                    String remetente = in.readUTF();
-                    String nomeArquivo = in.readUTF();
+                    String operacao = entrada.readUTF();
+                    String remetente = entrada.readUTF();
+                    String nomeArquivo = entrada.readUTF();
+
+                    if (operacao.equals("HANDSHAKE_FIM"))
+                        continue;
 
                     File arquivoDestino = new File("pasta_servidor/" + nomeArquivo);
 
                     if (operacao.equals("SYNC")) {
-                        long tamanhoArquivo = in.readLong();
+                        long tamanhoArquivo = entrada.readLong();
+                        if (tamanhoArquivo < 0 || tamanhoArquivo > Integer.MAX_VALUE) {
+                            throw new IOException("Tamanho de arquivo inválido: " + tamanhoArquivo);
+                        }
+                        byte[] dados = new byte[(int) tamanhoArquivo];
+                        entrada.readFully(dados);
                         System.out.println("[SYNC] Recebendo '" + nomeArquivo + "' de " + remetente);
-                        registrarLog("SYNC", "Recebido arquivo '" + nomeArquivo + "' (" + tamanhoArquivo + " bytes)", remetente, "Servidor");
+                        registrarLog("SYNC", "Recebido arquivo '" + nomeArquivo + "' (" + dados.length + " bytes)",
+                                remetente, "Servidor");
 
                         arquivosIgnorados.add(nomeArquivo);
                         FileOutputStream fos = new FileOutputStream(arquivoDestino);
-                        byte[] buffer = new byte[4096];
-                        int bytesLidos;
-                        long totalLido = 0;
-
-                        while (totalLido < tamanhoArquivo && (bytesLidos = in.read(buffer, 0, (int)Math.min(buffer.length, tamanhoArquivo - totalLido))) != -1) {
-                            fos.write(buffer, 0, bytesLidos);
-                            totalLido += bytesLidos;
-                        }
+                        fos.write(dados);
                         fos.close();
                         Thread.sleep(500);
                         arquivosIgnorados.remove(nomeArquivo);
 
                         registrarLog("BROADCAST", "Repassando '" + nomeArquivo + "'", "Servidor", "Outros Clientes");
-                        for (DataOutputStream escritor : escritores) {
-                            if (escritor != out) {
-                                synchronized(escritor) {
+                        for (DataOutputStream escritor : saidas) {
+                            if (escritor != saida) {
+                                synchronized (escritor) {
                                     escritor.writeUTF("SYNC");
                                     escritor.writeUTF(remetente);
                                     escritor.writeUTF(nomeArquivo);
-                                    escritor.writeLong(tamanhoArquivo);
-
-                                    FileInputStream fis = new FileInputStream(arquivoDestino);
-                                    while ((bytesLidos = fis.read(buffer)) != -1) {
-                                        escritor.write(buffer, 0, bytesLidos);
-                                    }
-                                    fis.close();
+                                    escritor.writeLong(dados.length);
+                                    escritor.write(dados);
                                 }
                             }
                         }
@@ -222,10 +231,11 @@ public class Servidor {
                         Thread.sleep(500);
                         arquivosIgnorados.remove(nomeArquivo);
 
-                        registrarLog("BROADCAST", "Repassando ordem de exclusão de '" + nomeArquivo + "'", "Servidor", "Outros Clientes");
-                        for (DataOutputStream escritor : escritores) {
-                            if (escritor != out) {
-                                synchronized(escritor) {
+                        registrarLog("BROADCAST", "Repassando ordem de exclusão de '" + nomeArquivo + "'", "Servidor",
+                                "Outros Clientes");
+                        for (DataOutputStream escritor : saidas) {
+                            if (escritor != saida) {
+                                synchronized (escritor) {
                                     escritor.writeUTF("DELETE");
                                     escritor.writeUTF(remetente);
                                     escritor.writeUTF(nomeArquivo);
@@ -239,8 +249,11 @@ public class Servidor {
                 System.out.println("A conexão com um cliente foi perdida.");
                 registrarLog("DESCONEXÃO", "Conexão perdida com um cliente", "Cliente", "Servidor");
             } finally {
-                escritores.remove(out);
-                try { socket.close(); } catch (IOException e) {}
+                saidas.remove(saida);
+                try {
+                    socket.close();
+                } catch (IOException e) {
+                }
             }
         }
     }
