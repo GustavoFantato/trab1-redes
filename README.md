@@ -38,14 +38,6 @@ Para ambientes baseados em Unix (Linux/MacOS), recomenda-se também a instalaç�
 3. Instale o Java via Homebrew:
    `brew install java`
 
-### Instalação do Java no Windows
-*Nota: A ferramenta Make não é nativa no Windows. Portanto, configure apenas o Java.*
-1. Acesse o site oficial da Oracle ou a plataforma Adoptium (Eclipse Temurin) para baixar o instalador do JDK.
-2. Execute o arquivo `.exe` baixado e siga o assistente de instalação utilizando as configurações padrão.
-3. **Configuração das Variáveis de Ambiente:**
-   * Abra o menu Iniciar, pesquise por "Variáveis de Ambiente" e selecione "Editar as variáveis de ambiente do sistema".
-   * Na seção "Variáveis do sistema", encontre e selecione a variável `Path`, e clique em "Editar...".
-   * Clique em "Novo" e cole o caminho para a pasta `bin` onde o Java foi instalado (Geralmente em: `C:\Program Files\Java\jdk-XX\bin`). Salve as alterações.
 
 ---
 
@@ -130,34 +122,6 @@ A pasta do cliente é criada automaticamente. Cada cliente usa a própria pasta 
 
 ---
 
-## Como Executar o Sistema (Fluxo Manual - Windows)
-
-Caso esteja no Windows (ou não deseje usar o Make), é necessário compilar e executar os arquivos entrando nas suas respectivas pastas manualmente.
-
-**Terminal 1 (Servidor):**
-```bash
-cd servidor/src
-javac Servidor.java
-java Servidor
-```
-
-**Terminal 2 (Cliente 1):**
-```bash
-cd cliente/src
-javac Cliente.java
-java Cliente pasta_cliente_1 Alice
-```
-
-Em outra máquina, informe o IP do servidor:
-
-```bash
-cd cliente/src
-javac Cliente.java
-java Cliente pasta_cliente_1 Alice <ip>
-```
-
----
-
 ## Adicionando Novos Clientes
 O projeto permite a conexão de quantos clientes o usuário desejar simultaneamente. Para adicionar um terceiro, quarto ou quinto usuário à rede, basta abrir um novo terminal e executar o comando informando um novo nome de pasta e um novo identificador. Exemplo:
 ```bash
@@ -178,11 +142,6 @@ Caso deseje interromper os testes e resetar completamente o ambiente para uma no
 ```bash
 make reset
 ```
-
-**Manualmente (Windows):**
-1. Encerre os processos nos terminais pressionando `Ctrl + C`.
-2. Navegue até `servidor/src` e apague manualmente a pasta `pasta_servidor` e os arquivos `.class`.
-3. Navegue até `cliente/src` e apague manualmente as pastas dos clientes (ex: `pasta_cliente_1`) e os arquivos `.class`.
 
 
 **Integrantes do grupo:**
