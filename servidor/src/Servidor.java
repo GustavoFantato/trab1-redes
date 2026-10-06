@@ -3,6 +3,7 @@ import java.net.*;
 import java.nio.file.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -34,6 +35,27 @@ public class Servidor {
         }
     }
 
+    private static void imprimirEnderecos() {
+        System.out.println("Nesta máquina, clientes locais usam 127.0.0.1.");
+        try {
+            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+            while (interfaces.hasMoreElements()) {
+                NetworkInterface ni = interfaces.nextElement();
+                if (!ni.isUp() || ni.isLoopback())
+                    continue;
+                Enumeration<InetAddress> addrs = ni.getInetAddresses();
+                while (addrs.hasMoreElements()) {
+                    InetAddress addr = addrs.nextElement();
+                    if (addr instanceof Inet4Address) {
+                        System.out.println("Clientes em outras máquinas devem usar: " + addr.getHostAddress());
+                    }
+                }
+            }
+        } catch (SocketException e) {
+            System.out.println("Não foi possível listar os endereços de rede.");
+        }
+    }
+
     public static void main(String[] args) throws Exception {
         // Cria o socket do servidor
         ServerSocket serverSocket = new ServerSocket(8080);
@@ -46,6 +68,7 @@ public class Servidor {
 
         System.out.println("Servidor de espelhamento rodando na porta 8080...");
         System.out.println("Os logs estão sendo salvos em: " + pastaLogs.getAbsolutePath() + "/registro.log");
+        imprimirEnderecos();
         System.out.println("------------------------------------------------------");
 
         registrarLog("SISTEMA", "Servidor de espelhamento iniciado na porta 8080", "Localhost", "N/A");

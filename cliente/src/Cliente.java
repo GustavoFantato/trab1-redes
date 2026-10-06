@@ -17,11 +17,13 @@ public class Cliente {
         // e cria a pasta local se não existir
         if (args.length < 2) {
             System.out.println("Erro: Informe o diretório local e o seu identificador.");
-            System.out.println("Exemplo: java Cliente pasta_cliente_1 Alice");
+            System.out.println("Exemplo local: java Cliente pasta_cliente_1 Alice");
+            System.out.println("Exemplo remoto: java Cliente pasta_cliente_1 Alice 192.168.0.10");
             return;
         }
         String pastaLocal = args[0];
         String identificador = args[1];
+        String hostServidor = args.length >= 3 ? args[2] : "127.0.0.1";
 
         new File(pastaLocal).mkdirs();
 
@@ -37,9 +39,9 @@ public class Cliente {
             }
         }
 
-        // Conecta ao servidor
-        Socket socket = new Socket("127.0.0.1", 8080);
-        System.out.println("Conectado como [" + identificador + "]! Monitorando: " + pastaLocal);
+        // Conecta ao servidor (127.0.0.1 se o IP não for informado)
+        Socket socket = new Socket(hostServidor, 8080);
+        System.out.println("Conectado como [" + identificador + "] em " + hostServidor + ":8080! Monitorando: " + pastaLocal);
 
         // Cria os streams de entrada e saída da rede
         DataOutputStream saida = new DataOutputStream(socket.getOutputStream());

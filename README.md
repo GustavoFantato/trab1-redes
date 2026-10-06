@@ -62,7 +62,7 @@ make run-server
 ```
 
 ### Passo 2: Inicialização dos Clientes
-Abra novos terminais na raiz do projeto (um para cada cliente). O comando para conectar um cliente exige dois parâmetros: o nome da pasta local a ser criada/monitorada e o identificador do usuário.
+Abra novos terminais na raiz do projeto (um para cada cliente). O comando para conectar um cliente exige o nome da pasta local a ser criada/monitorada e o identificador do usuário. O endereço do servidor é opcional: se for omitido, o cliente conecta em `127.0.0.1` (a própria máquina).
 
 **Terminal do Cliente 1:**
 ```bash
@@ -75,6 +75,40 @@ make run-client pasta_cliente_2 Bob
 ```
 
 *Nota: As pastas dos clientes serão criadas automaticamente pelo código caso não estejam previamente criadas.*
+
+---
+
+## Executando em Máquinas Distintas
+
+O servidor escuta na porta **8080** em todas as interfaces da máquina. O cliente em outro computador precisa do endereço IPv4 dessa máquina.
+
+### 1. Servidor
+Na máquina que ficará como servidor, na raiz do projeto:
+
+```bash
+make run-server
+```
+
+Ao iniciar, o programa lista os endereços que os clientes remotos devem usar. Anote o IPv4 da rede local (por exemplo, `192.168.0.10`). Se o firewall estiver ativo, libere a porta:
+
+```bash
+sudo ufw allow 8080/tcp
+```
+
+### 2. Cliente
+Na outra máquina, com o mesmo projeto e o JDK instalado, passe o IP do servidor como terceiro argumento:
+
+```bash
+make run-client pasta_cliente_1 Alice 192.168.0.10
+```
+
+Troque `192.168.0.10` pelo endereço impresso pelo servidor. Cada cliente usa a própria pasta e o próprio identificador.
+
+As duas máquinas precisam estar na mesma rede (ou na mesma VPN). Para conferir se a porta está acessível, na máquina do cliente:
+
+```bash
+nc -vz 192.168.0.10 8080
+```
 
 ---
 
@@ -96,12 +130,26 @@ javac Cliente.java
 java Cliente pasta_cliente_1 Alice
 ```
 
+Em outra máquina, informe o IP do servidor:
+
+```bash
+cd cliente/src
+javac Cliente.java
+java Cliente pasta_cliente_1 Alice 192.168.0.10
+```
+
 ---
 
 ## Adicionando Novos Clientes
 O projeto permite a conexão de quantos clientes o usuário desejar simultaneamente. Para adicionar um terceiro, quarto ou quinto usuário à rede, basta abrir um novo terminal e executar o comando informando um novo nome de pasta e um novo identificador. Exemplo:
 ```bash
 make run-client pasta_cliente_3 Carlos
+```
+
+Em outra máquina, inclua o IP do servidor:
+
+```bash
+make run-client pasta_cliente_3 Carlos 192.168.0.10
 ```
 Os arquivos já presentes na rede serão imediatamente baixados para esta nova pasta através da rotina de Sincronização Inicial (SyncStart).
 

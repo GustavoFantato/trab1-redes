@@ -26,9 +26,9 @@ run-server: compile
 	cd servidor/src && java Servidor
 
 # Regra para rodar o cliente com argumentos dinâmicos
-# O word 2 e 3 capturam exatamente o que você digitar após "make run-client"
+# word 2 = pasta, word 3 = identificador, word 4 = IP do servidor (opcional)
 run-client: compile
-	cd cliente/src && java Cliente $(word 2, $(MAKECMDGOALS)) $(word 3, $(MAKECMDGOALS))
+	cd cliente/src && java Cliente $(word 2, $(MAKECMDGOALS)) $(word 3, $(MAKECMDGOALS)) $(word 4, $(MAKECMDGOALS))
 
 # Regra fantasma "pega-tudo": impede que o make dê erro ao ler os argumentos do cliente
 %:
