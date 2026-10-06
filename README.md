@@ -78,37 +78,55 @@ make run-client pasta_cliente_2 Bob
 
 ---
 
+## Limitações de rede
+
+O cliente conecta direto no IP privado do servidor, na porta **8080**. Por isso todas as máquinas precisam estar no **mesmo Wi-Fi**.
+
+* Um hotspot de celular compartilhado pelas máquinas também funciona, porque elas entram na mesma rede.
+* A eduroam da USP isola um computador do outro. Os IPs podem estar na mesma faixa e, ainda assim, o ping e a conexão falham.
+* Cada pessoa no próprio 4G, ou em hotspots diferentes, também falha. O IP do servidor só existe dentro da rede dele, e o 4G não aceita conexão vinda de fora.
+* Ao trocar de Wi-Fi, o IP do servidor muda. É preciso encerrar o servidor, subir de novo e usar o endereço novo.
+
 ## Executando em Máquinas Distintas
 
-O servidor escuta na porta **8080** em todas as interfaces da máquina. O cliente em outro computador precisa do endereço IPv4 dessa máquina.
+### 1. Coloque as máquinas no mesmo Wi-Fi
+Conecte o computador do servidor e o do cliente na mesma rede. Confira, em cada um, que o IPv4 é daquela rede:
 
-### 1. Servidor
-Na máquina que ficará como servidor, na raiz do projeto:
+```bash
+ip -4 addr
+```
+
+### 2. Inicie o servidor
+Na máquina do servidor, na raiz do projeto:
 
 ```bash
 make run-server
 ```
 
-Ao iniciar, o programa lista os endereços que os clientes remotos devem usar. Anote o IPv4 da rede local (por exemplo, `192.168.0.10`). Se o firewall estiver ativo, libere a porta:
+Anote o endereço da linha `Clientes em outras máquinas devem usar`. Use o IP do Wi-Fi. Se o firewall estiver ativo, libere a porta:
 
 ```bash
 sudo ufw allow 8080/tcp
 ```
 
-### 2. Cliente
-Na outra máquina, com o mesmo projeto e o JDK instalado, passe o IP do servidor como terceiro argumento:
+### 3. Teste o caminho até o servidor
+Na máquina do cliente, troque o IP pelo endereço anotado:
+
+```bash
+ping -c 3 192.168.0.10
+nc -vz 192.168.0.10 8080
+```
+
+O ping precisa responder e o `nc` precisa indicar que a porta 8080 está aberta. Se o ping falhar, as máquinas não estão se enxergando e o cliente Java também não vai conectar.
+
+### 4. Inicie o cliente
+Ainda na outra máquina, na raiz do projeto, passe a pasta local, o identificador e o IP do servidor:
 
 ```bash
 make run-client pasta_cliente_1 Alice 192.168.0.10
 ```
 
-Troque `192.168.0.10` pelo endereço impresso pelo servidor. Cada cliente usa a própria pasta e o próprio identificador.
-
-As duas máquinas precisam estar na mesma rede (ou na mesma VPN). Para conferir se a porta está acessível, na máquina do cliente:
-
-```bash
-nc -vz 192.168.0.10 8080
-```
+A pasta do cliente é criada automaticamente. Cada cliente usa a própria pasta e o próprio identificador.
 
 ---
 
