@@ -113,8 +113,8 @@ sudo ufw allow 8080/tcp
 Na máquina do cliente, troque o IP pelo endereço anotado:
 
 ```bash
-ping -c 3 192.168.0.10
-nc -vz 192.168.0.10 8080
+ping -c 3 <ip>
+nc -vz <ip> 8080
 ```
 
 O ping precisa responder e o `nc` precisa indicar que a porta 8080 está aberta. Se o ping falhar, as máquinas não estão se enxergando e o cliente Java também não vai conectar.
@@ -123,7 +123,7 @@ O ping precisa responder e o `nc` precisa indicar que a porta 8080 está aberta.
 Ainda na outra máquina, na raiz do projeto, passe a pasta local, o identificador e o IP do servidor:
 
 ```bash
-make run-client pasta_cliente_1 Alice 192.168.0.10
+make run-client pasta_cliente_1 Alice <ip>
 ```
 
 A pasta do cliente é criada automaticamente. Cada cliente usa a própria pasta e o próprio identificador.
@@ -153,7 +153,7 @@ Em outra máquina, informe o IP do servidor:
 ```bash
 cd cliente/src
 javac Cliente.java
-java Cliente pasta_cliente_1 Alice 192.168.0.10
+java Cliente pasta_cliente_1 Alice <ip>
 ```
 
 ---
@@ -167,7 +167,7 @@ make run-client pasta_cliente_3 Carlos
 Em outra máquina, inclua o IP do servidor:
 
 ```bash
-make run-client pasta_cliente_3 Carlos 192.168.0.10
+make run-client pasta_cliente_3 Carlos <ip>
 ```
 Os arquivos já presentes na rede serão imediatamente baixados para esta nova pasta através da rotina de Sincronização Inicial (SyncStart).
 
